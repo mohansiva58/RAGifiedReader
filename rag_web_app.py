@@ -1,7 +1,8 @@
+import os
 import streamlit as st
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.vectorstores import Chroma
+from langchain_community.vectorstores import Chroma
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain.chains import ConversationalRetrievalChain
 from PIL import Image
@@ -23,8 +24,20 @@ with st.sidebar:
         for idx, (q, _) in enumerate(st.session_state.chat_history):
             st.markdown(f"**{idx+1}.** {q[:50]}...")
 
-# ---- Gemini API Key ----
-api_key = "AIzaSyAKZViSxSXD9Zc3c-m_CpcsBQZAGPlP0-o"
+# ---- Gemini API Key (from Streamlit secrets or ENV) ----
+# Set your key in `.streamlit/secrets.toml` as GEMINI_API_KEY or set the
+# environment variable GEMINI_API_KEY. Do NOT commit your real key.
+api_key = None
+if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
+    api_key = st.secrets["GEMINI_API_KEY"]
+else:
+    api_key = os.getenv("GEMINI_API_KEY")
+
+if not api_key:
+    st.warning(
+        "GEMINI_API_KEY not found. Set it in .streamlit/secrets.toml (GEMINI_API_KEY) or as the environment variable GEMINI_API_KEY."
+    )
+    st.stop()
 
 # ---- Session State Init ----
 if "chat_history" not in st.session_state:
