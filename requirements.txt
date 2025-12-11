@@ -6,12 +6,5 @@ google-generativeai
 langchain-google-genai
 chromadb
 pypdf
-
-streamlit
-langchain
-langchain-community
-langchain-google-genai
-chromadb
 Pillow
-pypdf
 python-dotenv
