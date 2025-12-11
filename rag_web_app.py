@@ -1,10 +1,12 @@
 import os
 import streamlit as st
 from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
-from langchain.chains import ConversationalRetrievalChain
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
 from PIL import Image
 import tempfile
 
@@ -67,12 +69,25 @@ if uploaded_file and st.session_state.qa_chain is None:
     retriever = vectordb.as_retriever(search_kwargs={"k": 10})
 
     model = ChatGoogleGenerativeAI(model="gemini-2.0-flash", api_key=api_key)
-    qa_chain = ConversationalRetrievalChain.from_llm(
-        llm=model,
-        retriever=retriever,
-        return_source_documents=False
+    
+    # Create a simple RAG chain using LCEL
+    prompt = ChatPromptTemplate.from_template(
+        "Answer the question based on the following context:\\n\\n{context}\\n\\nQuestion: {question}\\n\\nAnswer:"
     )
+    
+    def format_docs(docs):
+        return "\\n\\n".join(doc.page_content for doc in docs)
+    
+    qa_chain = (
+        {"context": retriever | format_docs, "question": RunnablePassthrough()}
+        | prompt
+        | model
+        | StrOutputParser()
+    )
+    
     st.session_state.qa_chain = qa_chain
+    st.session_state.retriever = retriever
+    st.session_state.model = model
     st.success("✅ PDF indexed! Start chatting below.")
 
 # ---- Chat Interface ----
@@ -80,11 +95,8 @@ if st.session_state.qa_chain:
     user_input = st.chat_input("💬 Ask your question here...")
     if user_input:
         with st.spinner("🤖 Generating response..."):
-            result = st.session_state.qa_chain({
-                "question": user_input,
-                "chat_history": st.session_state.chat_history
-            })
-            st.session_state.chat_history.append((user_input, result["answer"]))
+            answer = st.session_state.qa_chain.invoke(user_input)
+            st.session_state.chat_history.append((user_input, answer))
 
     # Display Chat History (ChatGPT Style)
     for q, a in st.session_state.chat_history:
